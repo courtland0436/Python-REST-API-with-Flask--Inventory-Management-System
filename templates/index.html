@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inventory Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f9f9f9;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        input, button {
+            padding: 5px;
+            margin: 2px;
+        }
+        button {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Inventory Table Card -->
+    <div class="card">
+        <h1>Inventory Management</h1>
+        <table id="inventory-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Product Name</th>
+                    <th>Brand</th>
+                    <th>Price</th>
+                    <th>Stock</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- Add Item Card -->
+    <div class="card">
+        <h2>Add New Item</h2>
+        <form id="add-form">
+            <input type="text" placeholder="Product Name" id="product_name" required>
+            <input type="text" placeholder="Brand" id="brand" required>
+            <input type="number" step="0.01" placeholder="Price" id="price" required>
+            <input type="number" placeholder="Stock" id="stock" required>
+            <input type="text" placeholder="Barcode (optional)" id="barcode">
+            <button type="submit">Add Item</button>
+        </form>
+    </div>
+
+    <script>
+        const tableBody = document.querySelector("#inventory-table tbody");
+        const form = document.getElementById("add-form");
+
+        // Fetch and render inventory
+        function loadInventory() {
+            fetch("/inventory")
+                .then(res => res.json())
+                .then(data => {
+                    tableBody.innerHTML = "";
+                    data.forEach(item => {
+                        const row = document.createElement("tr");
+                        row.innerHTML = `
+                            <td>${item.id}</td>
+                            <td>${item.product_name}</td>
+                            <td>${item.brand || ""}</td>
+                            <td id="price-cell-${item.id}">$${item.price}</td>
+                            <td id="stock-cell-${item.id}">${item.stock}</td>
+                            <td>
+                                <button onclick="enableEdit(${item.id})">Update</button>
+                                <button onclick="deleteItem(${item.id})">Delete</button>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                });
+        }
+
+        // Add a new item
+        form.addEventListener("submit", e => {
+            e.preventDefault();
+            const data = {
+                product_name: document.getElementById("product_name").value,
+                brand: document.getElementById("brand").value,
+                price: parseFloat(document.getElementById("price").value),
+                stock: parseInt(document.getElementById("stock").value),
+                barcode: document.getElementById("barcode").value || undefined
+            };
+
+            fetch("/inventory", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            })
+            .then(res => res.json())
+            .then(() => {
+                form.reset();
+                loadInventory();
+            });
+        });
+
+        // Enable inline edit for price and stock
+        function enableEdit(id) {
+            const priceCell = document.getElementById(`price-cell-${id}`);
+            const stockCell = document.getElementById(`stock-cell-${id}`);
+
+            const currentPrice = priceCell.textContent.replace('$','');
+            const currentStock = stockCell.textContent;
+
+            priceCell.innerHTML = `<input type="number" step="0.01" id="price-input-${id}" value="${currentPrice}">`;
+            stockCell.innerHTML = `<input type="number" id="stock-input-${id}" value="${currentStock}">`;
+
+            // Change Update button to Save
+            const updateBtn = priceCell.parentElement.querySelector('button');
+            updateBtn.textContent = 'Save';
+            updateBtn.onclick = () => saveEdit(id);
+        }
+
+        // Save edited price and stock
+        function saveEdit(id) {
+            const price = parseFloat(document.getElementById(`price-input-${id}`).value);
+            const stock = parseInt(document.getElementById(`stock-input-${id}`).value);
+
+            fetch(`/inventory/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ price, stock })
+            })
+            .then(res => res.json())
+            .then(() => loadInventory());
+        }
+
+        // Delete an item
+        function deleteItem(id) {
+            fetch(`/inventory/${id}`, { method: "DELETE" })
+                .then(res => res.json())
+                .then(() => loadInventory());
+        }
+
+        // Initial load
+        loadInventory();
+    </script>
+</body>
+</html>
